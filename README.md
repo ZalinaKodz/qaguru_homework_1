@@ -30,8 +30,8 @@
 #### 1. Клонировать репозиторий
 
 ```bash
-git clone https://github.com/ZalinaKodz/qa_homework_1.git
-cd qa_homework_1
+git clone https://github.com/ZalinaKodz/qaguru_homework_1.git
+cd qaguru_homework_1
 ```
 
 #### 2. Установить зависимости
