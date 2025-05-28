@@ -30,8 +30,8 @@
 #### 1. Клонировать репозиторий
 
 ```bash
-git clone https://github.com/Andreyshabalinn/python-fast-api-tests.git
-cd python-fast-api-tests
+git clone https://github.com/ZalinaKodz/qa_homework_1.git
+cd qa_homework_1
 ```
 
 #### 2. Установить зависимости
