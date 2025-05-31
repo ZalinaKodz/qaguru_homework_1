@@ -1,66 +1,85 @@
-from fastapi import FastAPI, HTTPException, Query
-from typing import List
-from pydantic import BaseModel
-from data import users
-
+from fastapi import FastAPI, Header, HTTPException, status
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, ConfigDict
+from typing import Optional
+from datetime import datetime
 
 app = FastAPI()
 
+API_KEY = "reqres-free-v1"
 
-class User(BaseModel):
-    id: int
-    email: str
-    first_name: str
-    last_name: str
-    avatar: str
+# Pydantic v2: обязательно указываем model_config
+class UserCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    name: str
+    job: str
 
+class UserPatch(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    name: Optional[str] = None
+    job: Optional[str] = None
 
-class UserResponse(BaseModel):
-    data: User
+# Простое хранилище пользователей
+users = {}
+next_id = 1
 
+def check_api_key(x_api_key: Optional[str]):
+    if x_api_key != API_KEY:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid API key")
 
-class UsersListResponse(BaseModel):
-    page: int
-    per_page: int
-    total: int
-    total_pages: int
-    data: List[User]
+@app.post("/api/users", status_code=status.HTTP_201_CREATED)
+async def create_user(user: UserCreate, x_api_key: Optional[str] = Header(None)):
+    check_api_key(x_api_key)
+    global next_id
+    created_at = datetime.utcnow().isoformat() + "Z"
+    user_id = next_id
+    next_id += 1
+    users[user_id] = {
+        "name": user.name,
+        "job": user.job,
+        "id": str(user_id),
+        "createdAt": created_at
+    }
+    return users[user_id]
 
-
-@app.get("/api/users/{user_id}", response_model=UserResponse)
-def get_user(user_id: int) -> UserResponse:
-    user_dict = users.get(user_id)
-    if user_dict is None:
+@app.put("/api/users/{user_id}")
+async def update_user_put(user_id: int, user: UserCreate, x_api_key: Optional[str] = Header(None)):
+    check_api_key(x_api_key)
+    if user_id not in users:
         raise HTTPException(status_code=404, detail="User not found")
-    user = User(**user_dict)
-    return UserResponse(data=user)
+    updated_at = datetime.utcnow().isoformat() + "Z"
+    users[user_id].update({
+        "name": user.name,
+        "job": user.job,
+        "updatedAt": updated_at
+    })
+    return {
+        "name": user.name,
+        "job": user.job,
+        "updatedAt": updated_at
+    }
 
+@app.patch("/api/users/{user_id}")
+async def update_user_patch(user_id: int, user: UserPatch, x_api_key: Optional[str] = Header(None)):
+    check_api_key(x_api_key)
+    if user_id not in users:
+        raise HTTPException(status_code=404, detail="User not found")
+    updated_at = datetime.utcnow().isoformat() + "Z"
+    if user.name is not None:
+        users[user_id]["name"] = user.name
+    if user.job is not None:
+        users[user_id]["job"] = user.job
+    users[user_id]["updatedAt"] = updated_at
+    response = {}
+    if user.name is not None:
+        response["name"] = user.name
+    if user.job is not None:
+        response["job"] = user.job
+    response["updatedAt"] = updated_at
+    return response
 
-@app.get("/api/users", response_model=UsersListResponse)
-def list_users(page: int = Query(1, ge=1)) -> UsersListResponse:
-    per_page: int = 3
-    total_users: int = len(users)
-    total_pages: int = (total_users + per_page - 1) // per_page
-
-    if page > total_pages and total_users > 0:
-        return UsersListResponse(
-            page=page,
-            per_page=per_page,
-            total=total_users,
-            total_pages=total_pages,
-            data=[]
-        )
-
-    start: int = (page - 1) * per_page
-    end: int = start + per_page
-
-    user_list = [User(**u) for u in list(users.values())[start:end]]
-
-    return UsersListResponse(
-        page=page,
-        per_page=per_page,
-        total=total_users,
-        total_pages=total_pages,
-        data=user_list
-    )
-
+@app.delete("/api/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_user(user_id: int, x_api_key: Optional[str] = Header(None)):
+    check_api_key(x_api_key)
+    users.pop(user_id, None)  # удаляем, если есть, иначе ничего
+    return JSONResponse(status_code=status.HTTP_204_NO_CONTENT, content=None)
